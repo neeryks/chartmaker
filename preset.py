@@ -123,7 +123,7 @@ def presets_merge(data):
               "line_coord":[900, 1020, 1050]
               },
        "DGSWB":{
-              "position":(80,100),
+              "position":(200,300),
               "type":"White",
               "path":"chartmaker/media/A3White.png",
               "resize":(700,700),
