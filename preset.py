@@ -34,8 +34,8 @@ def presets_size(data):
                "crop_coords":(68,30,1228,1190),
                },
        "DG":{"size":55,
-               "width":29.7,
-               "height":42,
+               "width":55,
+               "height":77.68,
                "crop_coords":(68,30,1228,1190),
                },
        
@@ -100,6 +100,34 @@ def presets_merge(data):
               "path":"chartmaker/media/A4White.png",
               "resize":(500,500),
               "line_coord":[630, 720, 750]
+              },
+       "DGCWB":{
+              "position":(80,100),
+              "type":"White",
+              "path":"chartmaker/media/A3White.png",
+              "resize":(700,700),
+              "line_coord":[900, 1000, 1030]
+              },
+       "DGCBB":{
+              "position":(80,100),
+              "type":"Black",
+              "path":"chartmaker/media/A3Black.png",
+              "resize":(700,700),
+              "line_coord":[900, 1020, 1050]
+              },
+       "DGSBB":{
+              "position":(80,100),
+              "type":"White",
+              "path":"chartmaker/media/A3Black.png",
+              "resize":(700,700),
+              "line_coord":[900, 1020, 1050]
+              },
+       "DGSWB":{
+              "position":(80,100),
+              "type":"White",
+              "path":"chartmaker/media/A3White.png",
+              "resize":(700,700),
+              "line_coord":[900, 1020, 1050]
               },
     
     }
