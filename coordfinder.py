@@ -1,56 +1,61 @@
-import math
-from datetime import datetime, timedelta
 from geopy.geocoders import Nominatim
+from astropy.coordinates import EarthLocation, AltAz, SkyCoord
+from astropy.time import Time
+import astropy.units as u
+from datetime import datetime
 
-def get_lat_lon(place_name):
-    geolocator = Nominatim(user_agent="your_app_name")  # Replace "your_app_name" with your own user agent
+from datetime import datetime
+from geopy.geocoders import Nominatim
+from astropy.time import Time
+from astropy.coordinates import EarthLocation, AltAz, SkyCoord
+import astropy.units as u
 
-    location = geolocator.geocode(place_name)
+
+def get_zenith_ra_dec(date_str, time_str, location_str):
+    # Initialize geolocator
+    geolocator = Nominatim(user_agent="zenith_locator")
     
-    if location:
-        latitude, longitude = location.latitude, location.longitude
-        return latitude, longitude
-    else:
-        print(f"Location not found for: {place_name}")
-        return None
+    # Get location coordinates
+    location = geolocator.geocode(location_str)
+    if location is None:
+        return "Location not found."
+    
+    latitude = location.latitude
+    longitude = location.longitude
+    
+    # Try to parse the date using different formats
+    date_formats = ["%d-%m-%Y", "%Y-%m-%d"]
+    date_obj = None
+    for fmt in date_formats:
+        try:
+            date_obj = datetime.strptime(date_str, fmt)
+            break
+        except ValueError:
+            continue
+    
+    if date_obj is None:
+        return "Invalid date format. Please use DD-MM-YYYY or YYYY-MM-DD."
+    
+    date_iso_str = date_obj.strftime("%Y-%m-%d")
+    
+    # Combine date and time into a single time object
+    datetime_str = f"{date_iso_str}T{time_str}"
+    observation_time = Time(datetime_str)
 
-def calculate_zenith_coordinates(latitude, longitude, date, time):
-    # Convert latitude and longitude to radians
-    lat_rad = math.radians(latitude)
-    lon_rad = math.radians(longitude)
+    # Define the observer's location
+    observer_location = EarthLocation(lat=latitude*u.deg, lon=longitude*u.deg)
 
-    # Calculate the observer's altitude (in degrees)
-    altitude = 90.0  # Assuming sea level for simplicity
+    # Define the AltAz frame
+    altaz = AltAz(obstime=observation_time, location=observer_location)
 
-    # Convert date and time to a datetime object
-    datetime_str = f"{date} {time}"
-    observation_time = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+    # Zenith point is at 90 degrees altitude
+    zenith_altaz = SkyCoord(alt=90*u.deg, az=0*u.deg, frame=altaz)
+    
+    # Transform to ICRS (RA, Dec)
+    zenith_icrs = zenith_altaz.transform_to('icrs')
+    
+    zenith_ra = zenith_icrs.ra.deg
+    zenith_dec = zenith_icrs.dec.deg
+    
+    return zenith_ra, zenith_dec
 
-    # Calculate the Julian Day
-    julian_day = (observation_time - datetime(2000, 1, 1, 12, 0, 0)).days + 2451545.0
-
-    # Calculate the observer's local sidereal time (LST)
-    sidereal_time = (280.46061837 + 360.98564736629 * (julian_day - 2451545.0)
-                     + lon_rad) % 360.0
-
-    # Calculate the hour angle (in degrees)
-    hour_angle = sidereal_time - 180.0
-
-    # Convert angles to radians
-    altitude_rad = math.radians(altitude)
-    hour_angle_rad = math.radians(hour_angle)
-
-    # Calculate the declination of the zenith point (in radians)
-    declination_rad = math.asin(math.sin(lat_rad) * math.sin(altitude_rad)
-                                + math.cos(lat_rad) * math.cos(altitude_rad) * math.cos(hour_angle_rad))
-
-    # Calculate the right ascension of the zenith point (in radians)
-    right_ascension_rad = math.atan2(math.sin(hour_angle_rad),
-                                     math.cos(lat_rad) * math.tan(declination_rad)
-                                     - math.sin(lat_rad) * math.cos(hour_angle_rad))
-
-    # Convert angles back to degrees
-    declination = math.degrees(declination_rad)
-    right_ascension = math.degrees(right_ascension_rad)
-
-    return right_ascension, declination

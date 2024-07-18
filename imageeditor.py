@@ -1,82 +1,91 @@
 from PIL import Image, ImageDraw, ImageFont
-from preset import presets,presets_size,presets_merge
+
 import random
 import time
 
 
-def clean_crop(path,size,filename):
-    img = Image.open(f"{path}{filename}")
-    cropped_img = img.crop(presets_size(size)['crop_coords'])
-    cropped_img.save(f"chartmaker/cropped-image/{filename}")
+def clean_crop(path,coords,filename):
+    img = Image.open(f"{path}/{filename}")
+    cropped_img = img.crop(coords)
+    cropped_img.save(f"cropped-image/{filename}")
 
-def add_chart_background(image_input, chartbg_color, image_output):
+def random_crop(image, target_width, target_height):
+    # Ensure the background image is larger than the target size
+    bg_width, bg_height = image.size
+    if bg_width < target_width or bg_height < target_height:
+        raise ValueError("Background image is smaller than the target size")
+
+    # Calculate random crop position
+    left = random.randint(0, bg_width - target_width)
+    top = random.randint(0, bg_height - target_height)
+    
+    # Crop the image
+    return image.crop((left, top, left + target_width, top + target_height))
+
+def add_chart_background(image_input, image_output, background_image=None):
     # Open the original image
-    original_image = Image.open(image_input)
-
+    original_image = Image.open(image_input).convert("RGBA")
+    
     # Get the size of the original image
     width, height = original_image.size
+    
+    # Open the background image if provided, otherwise create a default one
+    
+    if background_image:
+        background = Image.open(background_image).convert("RGBA")
+        background = background.resize((width, height))
 
-    # Create a new image with the same size as the original image
-    new_image = Image.new("RGB", (width, height))
-
-    # Set the background color based on the chartbg_color parameter
-    if chartbg_color.lower() == "white":
-        background_color = (255, 255, 255)  # RGB for white
-    elif chartbg_color.lower() == "black":
-        background_color = (0, 0, 0)  # RGB for black
-    elif chartbg_color.lower() == "complex":
-        # For complex, add an image as the background
-        background_image_path = "chartmaker/media/underlay.jpg"  # Replace with the actual path
-        background_image = Image.open(background_image_path)
-
-        # Get a random crop from the background image
-        background_image = random_crop(background_image, width, height)
-
-        # Paste the underlay image on top of the new image
-        background_image.paste(original_image, (0, 0))
-        background_image.save(image_output)
-        time.sleep(1)
-        return
-
-    # Fill the new image with the selected background color
-    new_image.paste(background_color, [0, 0, width, height])
-
-    # Paste the original image on top of the background
-    new_image.paste(original_image, (0, 0), original_image)
-
-    # Save the final image
-    new_image.save(image_output)
+    else:
+        background = Image.new("RGBA", (width, height), (0, 0, 0, 255))  # Create a solid black image
+    
+    # Combine the images
+    combined_image = Image.new('RGBA', (width, height))
+    combined_image.paste(background, (0, 0))
+    combined_image.paste(original_image, (0, 0), mask=original_image)
+    
+    # Create a circular mask to ensure the outside of the circle is transparent
+    final_mask = Image.new('L', (width, height), 0)  # 0 means black, fully transparent
+    draw = ImageDraw.Draw(final_mask)
+    draw.ellipse((0, 0, width, width), fill=255)  # 255 means white, fully opaque
+    
+    # Apply the final mask to the combined image
+    final_image = Image.new('RGBA', (width, height))
+    final_image.paste(combined_image, (0, 0), mask=final_mask)
+    
+    # Save the result
+    final_image.save(image_output)
     time.sleep(1)
 
-def random_crop(image, crop_width, crop_height):
+from PIL import Image
+import time
 
-    # Get the size of the original image
-    width, height = image.size
-
-    # Calculate random coordinates for the crop
-    left = random.randint(0, max(0, width - crop_width))
-    top = random.randint(0, max(0, height - crop_height))
-    right = min(left + crop_width, width)
-    bottom = min(top + crop_height, height)
-
-    return image.crop((left, top, right, bottom))
-
-def merge(poster_image_path, cropped_underlayed_path, output_path, position, poster_type):
-
+def merge(poster_image_path, cropped_underlayed_path, output_path, resize, position, background_image_path=None):
     toberesized = Image.open(cropped_underlayed_path)
-    resized = toberesized.resize(presets_merge(f"{poster_type}")['resize'])
+    resized = toberesized.resize(resize)
     resized.save(cropped_underlayed_path)
+
     poster_image = Image.open(poster_image_path)
     cropped_underlayed = Image.open(cropped_underlayed_path)
-    merged_image = Image.new("RGBA", poster_image.size, (255, 255, 255, 20))
-    merged_image.paste(cropped_underlayed, position)
-    merged_image.paste(poster_image, (0, 0), poster_image)
+
+    # Check if a background image is provided
+    if background_image_path:
+        background_image = Image.open(background_image_path)
+        background_image = background_image.resize(poster_image.size)
+    else:
+        background_image = Image.new("RGBA", poster_image.size, (255, 255, 255, 0))
+
+    # Paste the cropped underlayed image on the background
+    background_image.paste(cropped_underlayed, position, cropped_underlayed)
     
-    merged_image.paste(poster_image, (0, 0), poster_image)
-    merged_image.save(output_path, format="PNG")
+    # Paste the poster image on top
+    background_image.paste(poster_image, (0, 0), poster_image)
+    
+    # Save the final merged image
+    background_image.save(output_path, format="PNG")
     time.sleep(1)
 
-def text_write(image_path, line_coord, place, title_text, datetime, font_color, output_path,size):
+
+def text_write(image_path, line_coord, place, title_text, date,time, font_color, output_path,size):
     # Open the existing image
     image = Image.open(image_path)
 
@@ -86,23 +95,25 @@ def text_write(image_path, line_coord, place, title_text, datetime, font_color, 
     # Set the font sizes and types
     title_font_size = 50
     regular_font_size = 16
-    if size == "A3" or "DG":
-        title_font_size = 70
-        regular_font_size = 24
+    if size == "A3" or "DG" or "A4":
+        title_font_size = 220
+        regular_font_size = 100
     
 
-    title_font = ImageFont.truetype("chartmaker/media/ananda.ttf", title_font_size)
-    regular_font = ImageFont.truetype("chartmaker/media/montlight.ttf", regular_font_size)
+    title_font = ImageFont.truetype("media/ananda.ttf", title_font_size)
+    regular_font = ImageFont.truetype("media/montlight.ttf", regular_font_size)
     
     # Calculate x-coordinates for centering
     title_text_x = (image.width - draw.textlength(title_text, font=title_font)) // 2
     place_text_x = (image.width - draw.textlength(f"STARS ABOVE {place.upper()}", font=regular_font)) // 2
-    datetime_text_x = (image.width - draw.textlength(datetime, font=regular_font)) // 2
+    date_text_x = (image.width - draw.textlength(date, font=regular_font)) // 2
+    time_text_x = (image.width - draw.textlength(time[0:-3], font=regular_font)) // 2
     
     # Write the text to the image with the specified font color
     draw.text((title_text_x, line_coord[0]), title_text, font=title_font, fill=font_color)
     draw.text((place_text_x, line_coord[1]), f"STARS ABOVE {place.upper()}", font=regular_font, fill=font_color)
-    draw.text((datetime_text_x, line_coord[2]), datetime, font=regular_font, fill=font_color)
+    draw.text((date_text_x, line_coord[2]), "-".join(date.split("-")[::-1]), font=regular_font, fill=font_color)
+    draw.text((time_text_x, line_coord[3]), time[0:-3], font=regular_font, fill=font_color)
     
     # Save the final image
     image.save(output_path)
